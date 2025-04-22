@@ -30,14 +30,27 @@ with ui.sidebar(open="desktop"):
         selected=["Lunch", "Dinner"],   # Opciones seleccionadas inicialmente
         inline=True,                    # Mostrar horizontalmente
     )
+
+    ui.input_selectize(
+        "days",                         # ID del input
+        "Día de la semana",                 # Etiqueta para el usuario
+        ["Sun", "Sat", "Fri", "Thur"],            # Opciones disponibles
+        selected=["Sun", "Sat", "Fri", "Thur"],   # Opciones seleccionadas inicialmente
+        multiple=True,                  # Mostrar horizontalmente
+    )
+
     ui.input_action_button("reset", "Reset filter") # Botón para reiniciar filtros
+
+
+
 
 # Definir iconos para la interfaz
 ICONS = {
     "user": fa.icon_svg("user", "regular"),
     "wallet": fa.icon_svg("wallet"),
     "currency-euro": fa.icon_svg("euro-sign"),
-    "ellipsis": fa.icon_svg("ellipsis")
+    "ellipsis": fa.icon_svg("ellipsis"),
+    "users": fa.icon_svg("users")
 }
 
 # Crear fila de caja de valores
@@ -70,8 +83,18 @@ with ui.layout_columns(fill=False):
             d = tips_data()
             if d.shape[0] > 0:
                 bill = d.total_bill.mean()  # Calcular factura promedio
-                f"${bill:.2f}"              # Formatear como moneda
+                f"€{bill:.2f}"              # Formatear como moneda
 
+    # Cuarta caja de valor: Tamaño promedio
+    with ui.value_box(showcase=ICONS["users"]):
+        "Tamaño de Grupo Medio"
+
+        @render.express
+        def average_size():
+            d = tips_data()
+            if d.shape[0] > 0:
+                avg_size = d["size"].mean()
+                f"{avg_size:.1f} px"
 
 # Crear diseño principal con tres tarjetas
 with ui.layout_columns(col_widths=[6, 6, 12]):
@@ -88,7 +111,7 @@ with ui.layout_columns(col_widths=[6, 6, 12]):
         with ui.card_header(class_="d-flex justify-content-between align-items-center"):
             "Factura Total vs Propina"
             # Menú emergente para opciones de color
-            with ui.popover(title="Add a color variable", placement="top"):
+            with ui.popover(title="Añadir una variable de color", placement="top"):
                 ICONS["ellipsis"]
                 ui.input_radio_buttons(
                     "scatter_color",
@@ -96,16 +119,25 @@ with ui.layout_columns(col_widths=[6, 6, 12]):
                     ["none", "sex", "smoker", "day", "time"],
                     inline=True,
                 )
+                
+                ui.input_checkbox(
+                    "show_size",
+                    "Ver tamaño de grupo en los puntos:",
+                    value=False                    
+                )
 
         # Renderizar el gráfico de dispersión
         @render_plotly
         def scatterplot():
             color = input.scatter_color()
+            use_size = input.show_size()
+
             return px.scatter(
                 tips_data(),
                 x="total_bill",
                 y="tip",
                 color=None if color == "none" else color,
+                size="size" if use_size else None,
                 trendline="lowess",  # Añadir línea de tendencia
             )
         
@@ -151,6 +183,27 @@ with ui.layout_columns(col_widths=[6, 6, 12]):
             )
 
             return plt
+        
+    # 
+    with ui.layout_columns():
+        # Cuarta Tarjeta: Gráfico de líneas
+        with ui.card(full_screen=True):
+            ui.card_header("Gráfico de propinas por día de la semana")
+
+            @render_plotly
+            def simple_bar_chart():
+                tips_by_day = tips.groupby('day')['tip'].sum().reset_index()
+
+                day_order = ["Thur", "Fri", "Sat", "Sun"]
+                tips_by_day["day"] = pd.Categorical(tips_by_day["day"], categories=day_order, ordered=True)
+                tips_by_day = tips_by_day.sort_values("day")
+
+                plt = px.bar(tips_by_day,
+                              x='day', 
+                              y='tip')
+
+                return plt
+                
 
 # Incluir estilos CSS personalizados
 ui.include_css(app_dir / "styles.css")
@@ -165,7 +218,8 @@ def tips_data():
     bill = input.total_bill()
     idx1 = tips.total_bill.between(bill[0], bill[1])
     idx2 = tips.time.isin(input.time())
-    return tips[idx1 & idx2]
+    idx3 = tips.day.isin(input.days())
+    return tips[idx1 & idx2 & idx3]
 
 # Efecto reactivo para restablecer filtros cuando se hace clic en el botón
 @reactive.effect
@@ -173,3 +227,4 @@ def tips_data():
 def _():
     ui.update_slider("total_bill", value=bill_rng)  # Restablecer control deslizante
     ui.update_checkbox_group("time", selected=["Lunch", "Dinner"])  # Restablecer casillas
+    ui.update_selectize("days",selected=["Sun", "Sat", "Fri", "Thur"])
