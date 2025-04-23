@@ -1,5 +1,6 @@
 import faicons as fa
 import plotly.express as px
+import pandas as pd
 
 # cargar datos y computar valores extáticos
 from shared import app_dir, tips
@@ -97,7 +98,7 @@ with ui.layout_columns(fill=False):
                 f"{avg_size:.1f} px"
 
 # Crear diseño principal con tres tarjetas
-with ui.layout_columns(col_widths=[6, 6, 12]):
+with ui.layout_columns(col_widths=[6, 6]):
     # Primera tarjeta: Tabla de datos
     with ui.card(full_screen=True):
         ui.card_header("Tabla de propinas")
@@ -132,7 +133,7 @@ with ui.layout_columns(col_widths=[6, 6, 12]):
             color = input.scatter_color()
             use_size = input.show_size()
 
-            return px.scatter(
+            fig =  px.scatter(
                 tips_data(),
                 x="total_bill",
                 y="tip",
@@ -140,6 +141,14 @@ with ui.layout_columns(col_widths=[6, 6, 12]):
                 size="size" if use_size else None,
                 trendline="lowess",  # Añadir línea de tendencia
             )
+
+            # Ajustar tamaño del gráfico para que ocupe todo el espacio disponible
+            fig.update_layout(
+                autosize=True,
+                margin=dict(l=50, r=30, t=30, b=50)
+            )
+        
+            return fig
         
     # Tercera tarjeta: Gráfico de densidad (ridgeplot)
     with ui.card(full_screen=True):
@@ -179,16 +188,108 @@ with ui.layout_columns(col_widths=[6, 6, 12]):
             plt.update_layout(
                 legend=dict(
                     orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5
-                )
+                ),
+                autosize=True,
+                margin=dict(l=50, r=30, t=30, b=50)
             )
 
             return plt
+    
+     # Gráfico de barras por día de la semana
+    with ui.card(full_screen=True, height="400px"):  # Establecer altura fija
+        with ui.card_header(class_="d-flex justify-content-between align-items-center"):
+            "Propinas por día de la semana"
+            with ui.popover(title="Opciones de visualización"):
+                ICONS["ellipsis"]
+                ui.input_radio_buttons(
+                    "bar_metric",
+                    "Métrica:",
+                    ["Total propinas", "Propina media", "Porcentaje de propina"],
+                    selected="Total propinas",
+                    inline=True,
+                )
+                ui.input_checkbox(
+                    "show_day_count",
+                    "Muestra el número de visitas por día",
+                    value=True
+                )
+
+        @render_plotly
+        def tips_by_day():
+            data = tips_data()
+            
+            if data.shape[0] == 0:
+                return px.bar(title="No hay dato para mostrar con los filtros actuales")
+            
+            metric = input.bar_metric()
+            
+            if metric == "Total propinas":
+                day_tips = data.groupby("day")["tip"].sum().reset_index()
+                day_tips.columns = ["day", "value"]
+                y_title = "Total propinas (€)"
+            
+            elif metric == "Propina media":
+                day_tips = data.groupby("day")["tip"].mean().reset_index()
+                day_tips.columns = ["day", "value"]
+                y_title = "Propina media (€)"
+            
+            else:  # Tip percentage
+                data["percent"] = data.tip / data.total_bill * 100
+                day_tips = data.groupby("day")["percent"].mean().reset_index()
+                day_tips.columns = ["day", "value"]
+                y_title = "Porcentaje de propina medio (%)"
+            
+            # Ordenar los días correctamente
+            day_order = ["Thur", "Fri", "Sat", "Sun"]
+            day_tips["day"] = pd.Categorical(day_tips["day"], categories=day_order, ordered=True)
+            day_tips = day_tips.sort_values("day")
+            
+            # Configuración base para la gráfica
+            fig_params = {
+                    'x': 'day',
+                'y': 'value',
+                'color': 'day',
+                'labels': {'vañue': y_title, 'day': 'Día de la semana'},
+                'title': f'{metric} por día de la semana'
+            }
+
+            # Mostrar conteo de visitas si está activado
+            if input.show_day_count():
+                day_count = data.groupby("day").size().reset_index()
+                day_count.columns = ["day", "count"]
+                day_count["day"] = pd.Categorical(day_count["day"], categories=day_order, ordered=True)
+                day_count = day_count.sort_values("day")
+                
+                hover_template = "<b>%{x}</b><br>" + \
+                                f"{y_title}: %{{y:.2f}}<br>" + \
+                                "Número de visitas: %{customdata}<br>"
+                
+                fig = px.bar(
+                    day_tips,
+                    *fig_params
+                )
+                
+                fig.update_traces(hovertemplate=hover_template)
+            else:
+                fig = px.bar(
+                    day_tips,
+                    *fig_params
+                )
+            
+            fig.update_layout(
+                showlegend=True,
+                xaxis_title="Día de la semana",
+                yaxis_title=y_title,
+                autosize=True,
+                margin=dict(l=50, r=30, t=30, b=50)
+            )
+            
+            return fig
         
-    # 
+    # Cuarta Tarjeta: Gráfico de líneas
     with ui.layout_columns():
-        # Cuarta Tarjeta: Gráfico de líneas
         with ui.card(full_screen=True):
-            ui.card_header("Gráfico de propinas por día de la semana")
+            ui.card_header("Propinas por día de la semana")
 
             @render_plotly
             def simple_bar_chart():
