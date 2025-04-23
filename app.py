@@ -246,7 +246,7 @@ with ui.layout_columns(col_widths=[6, 6]):
             
             # Configuración base para la gráfica
             fig_params = {
-                    'x': 'day',
+                'x': 'day',
                 'y': 'value',
                 'color': 'day',
                 'labels': {'vañue': y_title, 'day': 'Día de la semana'},
@@ -266,14 +266,14 @@ with ui.layout_columns(col_widths=[6, 6]):
                 
                 fig = px.bar(
                     day_tips,
-                    *fig_params
+                    **fig_params
                 )
                 
                 fig.update_traces(hovertemplate=hover_template)
             else:
                 fig = px.bar(
                     day_tips,
-                    *fig_params
+                    **fig_params
                 )
             
             fig.update_layout(
