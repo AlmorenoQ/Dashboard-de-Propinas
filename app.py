@@ -286,24 +286,7 @@ with ui.layout_columns(col_widths=[6, 6]):
             
             return fig
         
-    # Cuarta Tarjeta: Gráfico de líneas
-    with ui.layout_columns():
-        with ui.card(full_screen=True):
-            ui.card_header("Propinas por día de la semana")
-
-            @render_plotly
-            def simple_bar_chart():
-                tips_by_day = tips.groupby('day')['tip'].sum().reset_index()
-
-                day_order = ["Thur", "Fri", "Sat", "Sun"]
-                tips_by_day["day"] = pd.Categorical(tips_by_day["day"], categories=day_order, ordered=True)
-                tips_by_day = tips_by_day.sort_values("day")
-
-                plt = px.bar(tips_by_day,
-                              x='day', 
-                              y='tip')
-
-                return plt
+    
                 
 
 # Incluir estilos CSS personalizados
